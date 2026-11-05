@@ -358,6 +358,28 @@ function updateCombos(history) {
 }
 
 // ========================================
+// DAILY LIMIT UI
+// ========================================
+
+function showDailyLimit() {
+  answerButtons.forEach(button => {
+    button.disabled = true;
+  });
+
+  document.querySelector(".answers").classList.add("daily-limit");
+
+  feedbackElement.textContent =
+    "Daily limit reached. Come back tomorrow!";
+
+  feedbackElement.className = "feedback";
+
+  attemptsElement.textContent =
+    "You've completed 10 questions today.";
+
+  nextButton.hidden = true;
+}
+
+// ========================================
 // LOAD DAILY HISTORY AND STREAKS
 // ========================================
 
@@ -388,6 +410,13 @@ async function loadDailyHistory() {
     // Calculate current and best combos.
     updateCombos(history);
 
+    // Apply the daily limit after loading Supabase history.
+    if (dailyTotalQuestions >= 10) {
+      showDailyLimit();
+    } else {
+      startQuestion();
+    }
+
     console.log("Daily history and streaks loaded:", {
       dailyCorrectCount,
       dailyTotalQuestions,
@@ -414,9 +443,9 @@ function saveDailyResult() {
     .then(async () => {
       if (!currentUser) return;
 
-  const qualifies =
-    dailyTotalQuestions >= 10 &&
-    (dailyCorrectCount / dailyTotalQuestions) >= 0.70;
+      const qualifies =
+        dailyTotalQuestions >= 10 &&
+        (dailyCorrectCount / dailyTotalQuestions) >= 0.70;
 
       const dailyResult = {
         user_id: currentUser.id,
@@ -458,24 +487,14 @@ function completeQuestion(wasCorrect) {
     correctCount++;
     dailyCorrectCount++;
   }
-  
-  if (dailyTotalQuestions >= 10) {
-    answerButtons.forEach(button => {
-      button.disabled = true;
-    });
 
-    document.querySelector(".answers").classList.add("daily-limit");
-
-    feedbackElement.textContent = "Daily limit reached. Come back tomorrow!";
-    feedbackElement.className = "feedback";
-
-    attemptsElement.textContent = "You've completed 10 questions today.";
-
-    nextButton.hidden = true;
-  }
-  
   updateStats();
   saveDailyResult();
+
+  // Stop the quiz immediately after question 10.
+  if (dailyTotalQuestions >= 10) {
+    showDailyLimit();
+  }
 }
 
 // ========================================
@@ -483,29 +502,18 @@ function completeQuestion(wasCorrect) {
 // ========================================
 
 function startQuestion() {
+  // Stop quiz when daily limit is reached.
+  if (dailyTotalQuestions >= 10) {
+    showDailyLimit();
+    return;
+  }
+
+  document.querySelector(".answers").classList.remove("daily-limit");
+
   const pool = hiragana.filter(
     ([character]) => character !== previousCharacter
   );
 
-// Stop quiz when daily limit is reached.
-if (dailyTotalQuestions >= 10) {
-  answerButtons.forEach(button => {
-    button.disabled = true;
-  });
-
-  document.querySelector(".answers").classList.add("daily-limit");
-
-  feedbackElement.textContent = "Daily limit reached. Come back tomorrow!";
-  feedbackElement.className = "feedback";
-
-  attemptsElement.textContent = "You've completed 10 questions today.";
-
-  nextButton.hidden = true;
-  return;
-}
-
-document.querySelector(".answers").classList.remove("daily-limit");
-  
   currentQuestion = randomItem(pool);
   previousCharacter = currentQuestion[0];
 
@@ -551,12 +559,19 @@ document.querySelector(".answers").classList.remove("daily-limit");
 function chooseAnswer(event) {
   const button = event.currentTarget;
 
-  if (questionFinished || button.disabled) return;
+  if (
+    questionFinished ||
+    button.disabled ||
+    dailyTotalQuestions >= 10
+  ) return;
 
   const selected = button.dataset.answer;
 
   if (selected === currentQuestion[1]) {
     completeQuestion(true);
+
+    // Preserve the daily-limit message after question 10.
+    if (dailyTotalQuestions >= 10) return;
 
     button.classList.add("right");
 
@@ -588,6 +603,9 @@ function chooseAnswer(event) {
       `${remaining} ${remaining === 1 ? "attempt" : "attempts"} remaining.`;
   } else {
     completeQuestion(false);
+
+    // Preserve the daily-limit message after question 10.
+    if (dailyTotalQuestions >= 10) return;
 
     answerButtons.forEach(item => {
       item.disabled = true;
@@ -622,6 +640,8 @@ resetButton.addEventListener("click", () => {
   questionCount = 0;
 
   updateStats();
+
+  // Resetting session accuracy does not reset the daily limit.
   startQuestion();
 });
 
@@ -631,9 +651,14 @@ resetButton.addEventListener("click", () => {
 
 async function initializeQuiz() {
   updateStats();
-  startQuestion();
 
+  // Wait for Supabase history before starting the quiz.
   await initializeAuth();
+
+  // Start a question if history did not already start one.
+  if (dailyTotalQuestions < 10 && !currentQuestion) {
+    startQuestion();
+  }
 }
 
 initializeQuiz();
