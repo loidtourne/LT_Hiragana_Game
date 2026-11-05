@@ -103,19 +103,22 @@
 
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase JavaScript library -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <script>
-    const SUPABASE_URL = "https://ckbasqdqtmxwrixcctca.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_Gumosi4t5hmBCR_eiLLNNw_unIoQjo_";
+<!-- Supabase configuration -->
+<script>
+  const HIRAGANA_SUPABASE_URL =
+    "https://ckbasqdqtmxwrixcctca.supabase.co";
 
-    const supabase = window.supabase.createClient(
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY
-    );
+  const HIRAGANA_SUPABASE_ANON_KEY =
+    "sb_publishable_Gumosi4t5hmBCR_eiLLNNw_unIoQjo_";
 
-    window.supabaseClient = supabase;
-  </script>
+  window.supabaseClient = window.supabase.createClient(
+    HIRAGANA_SUPABASE_URL,
+    HIRAGANA_SUPABASE_ANON_KEY
+  );
+</script>
 
   <script src="script.js"></script>
 </body>
