@@ -132,6 +132,21 @@ body {
   color: var(--error);
 }
 
+/* DAILY LIMIT */
+
+.answers.daily-limit .answer {
+  opacity: 0.35;
+  filter: grayscale(100%);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.daily-limit-message {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* ANSWERS */
 
 .answers {
