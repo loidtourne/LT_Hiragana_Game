@@ -17,20 +17,23 @@ const hiragana = [
   ["ぱ", "pa"], ["ぴ", "pi"], ["ぷ", "pu"], ["ぺ", "pe"], ["ぽ", "po"]
 ];
 
-// SUPABASE
+// ========================================
+// SUPABASE CONFIGURATION
+// ========================================
+
 const supabaseClient = window.supabaseClient;
+const OWNER_EMAIL = "loidtourne@gmail.com";
 
-// Current authenticated user
 let currentUser = null;
-
-// Daily totals loaded from Supabase
 let dailyCorrectCount = 0;
 let dailyTotalQuestions = 0;
 
-// Prevent overlapping saves
-let saveInProgress = false;
+// Queue saves so consecutive answers aren't dropped.
+let saveQueue = Promise.resolve();
 
+// ========================================
 // ELEMENTS
+// ========================================
 
 const characterElement = document.getElementById("hiragana");
 const feedbackElement = document.getElementById("feedback");
@@ -42,7 +45,18 @@ const attemptsElement = document.getElementById("attempts");
 const accuracyElement = document.getElementById("accuracy");
 const resetButton = document.getElementById("resetButton");
 
+const authButton = document.getElementById("authButton");
+const accountStatus = document.getElementById("accountStatus");
+
+const loginPanel = document.getElementById("loginPanel");
+const loginForm = document.getElementById("loginPanel");
+const loginEmail = document.getElementById("loginEmail");
+const loginSubmit = document.getElementById("loginSubmit");
+const loginMessage = document.getElementById("loginMessage");
+
+// ========================================
 // GAME STATE
+// ========================================
 
 let currentQuestion = null;
 let previousCharacter = null;
@@ -53,7 +67,9 @@ let questionCount = 0;
 
 let questionFinished = false;
 
+// ========================================
 // DATE
+// ========================================
 
 function getLocalStudyDate() {
   const now = new Date();
@@ -65,7 +81,9 @@ function getLocalStudyDate() {
   return `${year}-${month}-${day}`;
 }
 
+// ========================================
 // RANDOMIZATION
+// ========================================
 
 function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
@@ -76,14 +94,15 @@ function shuffle(items) {
 
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-
     [result[i], result[j]] = [result[j], result[i]];
   }
 
   return result;
 }
 
+// ========================================
 // ACCURACY
+// ========================================
 
 function updateStats() {
   const accuracy = questionCount
@@ -93,29 +112,179 @@ function updateStats() {
   accuracyElement.textContent = `${accuracy}%`;
 }
 
-// LOAD DAILY HISTORY
+// ========================================
+// AUTHENTICATION UI
+// ========================================
 
-async function loadDailyHistory() {
+function updateAuthUI() {
+  const isOwner = Boolean(
+    currentUser &&
+    currentUser.email?.toLowerCase() === OWNER_EMAIL.toLowerCase()
+  );
+
+  if (isOwner) {
+    authButton.textContent = "Sign out";
+    accountStatus.textContent = "Signed in as owner";
+    loginPanel.hidden = true;
+  } else {
+    authButton.textContent = "Sign in";
+    accountStatus.textContent = "Study mode";
+  }
+}
+
+// ========================================
+// SIGN IN / SIGN OUT
+// ========================================
+
+authButton.addEventListener("click", async () => {
+  if (currentUser) {
+    authButton.disabled = true;
+
+    const { error } = await supabaseClient.auth.signOut();
+
+    authButton.disabled = false;
+
+    if (error) {
+      console.error("Sign-out error:", error);
+      accountStatus.textContent = "Could not sign out";
+      return;
+    }
+
+    currentUser = null;
+    dailyCorrectCount = 0;
+    dailyTotalQuestions = 0;
+
+    updateAuthUI();
+    return;
+  }
+
+  loginPanel.hidden = !loginPanel.hidden;
+
+  if (!loginPanel.hidden) {
+    loginEmail.focus();
+  }
+});
+
+// Send magic link
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!supabaseClient) {
+    loginMessage.textContent = "Supabase is not connected.";
+    return;
+  }
+
+  const email = loginEmail.value.trim().toLowerCase();
+
+  if (email !== OWNER_EMAIL.toLowerCase()) {
+    loginMessage.textContent = "This email is not authorized.";
+    return;
+  }
+
+  loginSubmit.disabled = true;
+  loginSubmit.textContent = "Sending...";
+  loginMessage.textContent = "";
+
+  try {
+    const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: redirectUrl
+      }
+    });
+
+    if (error) throw error;
+
+    loginMessage.textContent =
+      "Sign-in link sent! Check your email.";
+
+  } catch (error) {
+    console.error("Sign-in error:", error);
+    loginMessage.textContent =
+      error.message || "Unable to send sign-in link.";
+  } finally {
+    loginSubmit.disabled = false;
+    loginSubmit.textContent = "Send sign-in link";
+  }
+});
+
+// ========================================
+// AUTH SESSION
+// ========================================
+
+async function initializeAuth() {
   if (!supabaseClient) {
     console.warn("Supabase client was not found.");
+    accountStatus.textContent = "Supabase unavailable";
     return;
   }
 
   try {
     const {
-      data: { user },
-      error: userError
-    } = await supabaseClient.auth.getUser();
+      data: { session },
+      error
+    } = await supabaseClient.auth.getSession();
 
-    if (userError) throw userError;
+    if (error) throw error;
 
-    currentUser = user;
+    currentUser = session?.user || null;
 
-    if (!currentUser) {
-      console.log("No authenticated user. Daily history will not be saved.");
-      return;
+    if (
+      currentUser &&
+      currentUser.email?.toLowerCase() !== OWNER_EMAIL.toLowerCase()
+    ) {
+      await supabaseClient.auth.signOut();
+      currentUser = null;
     }
 
+    updateAuthUI();
+
+    if (currentUser) {
+      await loadDailyHistory();
+    }
+
+  } catch (error) {
+    console.error("Authentication initialization error:", error);
+    accountStatus.textContent = "Authentication unavailable";
+  }
+
+  // Keep the UI updated if the session changes in another app
+  // or after returning from the magic-link email.
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    currentUser = session?.user || null;
+
+    if (
+      currentUser &&
+      currentUser.email?.toLowerCase() !== OWNER_EMAIL.toLowerCase()
+    ) {
+      currentUser = null;
+      supabaseClient.auth.signOut();
+    }
+
+    updateAuthUI();
+
+    if (event === "SIGNED_IN" && currentUser) {
+      loadDailyHistory();
+    }
+
+    if (event === "SIGNED_OUT") {
+      dailyCorrectCount = 0;
+      dailyTotalQuestions = 0;
+    }
+  });
+}
+
+// ========================================
+// LOAD DAILY HISTORY
+// ========================================
+
+async function loadDailyHistory() {
+  if (!supabaseClient || !currentUser) return;
+
+  try {
     const { data, error } = await supabaseClient
       .from("hiragana_daily_history")
       .select("correct_count, total_questions")
@@ -125,10 +294,8 @@ async function loadDailyHistory() {
 
     if (error) throw error;
 
-    if (data) {
-      dailyCorrectCount = data.correct_count;
-      dailyTotalQuestions = data.total_questions;
-    }
+    dailyCorrectCount = data?.correct_count ?? 0;
+    dailyTotalQuestions = data?.total_questions ?? 0;
 
     console.log("Daily history loaded:", {
       dailyCorrectCount,
@@ -140,54 +307,53 @@ async function loadDailyHistory() {
   }
 }
 
+// ========================================
 // SAVE DAILY RESULT
+// ========================================
 
-async function saveDailyResult() {
+function saveDailyResult() {
   if (!supabaseClient || !currentUser) {
-    console.warn("Cannot save daily history: user is not signed in.");
+    console.log("Not signed in. Daily history was not saved.");
     return;
   }
 
-  if (saveInProgress) {
-    console.warn("Daily history save already in progress.");
-    return;
-  }
+  // Each save runs after the previous save finishes.
+  saveQueue = saveQueue
+    .then(async () => {
+      if (!currentUser) return;
 
-  saveInProgress = true;
+      const qualifies =
+        dailyTotalQuestions > 0 &&
+        (dailyCorrectCount / dailyTotalQuestions) >= 0.70;
 
-  // A day qualifies with at least 70% accuracy.
-  const qualifies =
-    dailyTotalQuestions > 0 &&
-    (dailyCorrectCount / dailyTotalQuestions) >= 0.70;
+      const dailyResult = {
+        user_id: currentUser.id,
+        study_date: getLocalStudyDate(),
+        correct_count: dailyCorrectCount,
+        total_questions: dailyTotalQuestions,
+        qualifies
+      };
 
-  const dailyResult = {
-    user_id: currentUser.id,
-    study_date: getLocalStudyDate(),
-    correct_count: dailyCorrectCount,
-    total_questions: dailyTotalQuestions,
-    qualifies: qualifies
-  };
+      const { error } = await supabaseClient
+        .from("hiragana_daily_history")
+        .upsert(dailyResult, {
+          onConflict: "user_id,study_date"
+        });
 
-  try {
-    const { error } = await supabaseClient
-      .from("hiragana_daily_history")
-      .upsert(dailyResult, {
-        onConflict: "user_id,study_date"
-      });
+      if (error) throw error;
 
-    if (error) throw error;
+      console.log("Daily result saved:", dailyResult);
+    })
+    .catch(error => {
+      console.error("Error saving daily result:", error);
+    });
 
-    console.log("Daily result saved:", dailyResult);
-
-  } catch (error) {
-    console.error("Error saving daily result:", error);
-
-  } finally {
-    saveInProgress = false;
-  }
+  return saveQueue;
 }
 
+// ========================================
 // COMPLETE QUESTION
+// ========================================
 
 function completeQuestion(wasCorrect) {
   questionFinished = true;
@@ -201,12 +367,12 @@ function completeQuestion(wasCorrect) {
   }
 
   updateStats();
-
-  // Save the updated daily totals to Supabase.
   saveDailyResult();
 }
 
+// ========================================
 // START QUESTION
+// ========================================
 
 function startQuestion() {
   const pool = hiragana.filter(
@@ -225,22 +391,18 @@ function startQuestion() {
   feedbackElement.className = "feedback";
 
   attemptsElement.textContent = "You have 3 attempts.";
-
   nextButton.hidden = true;
 
-  // Get unique romaji answers to avoid duplicate choices.
   const uniqueRomaji = [...new Set(
     hiragana.map(([, romaji]) => romaji)
   )];
 
-  // Generate three incorrect choices.
   const wrongOptions = shuffle(
     uniqueRomaji.filter(
       romaji => romaji !== currentQuestion[1]
     )
   ).slice(0, 3);
 
-  // Combine and shuffle all four choices.
   const options = shuffle([
     currentQuestion[1],
     ...wrongOptions
@@ -255,7 +417,9 @@ function startQuestion() {
   });
 }
 
+// ========================================
 // SELECT ANSWER
+// ========================================
 
 function chooseAnswer(event) {
   const button = event.currentTarget;
@@ -263,8 +427,6 @@ function chooseAnswer(event) {
   if (questionFinished || button.disabled) return;
 
   const selected = button.dataset.answer;
-
-  // CORRECT ANSWER
 
   if (selected === currentQuestion[1]) {
     completeQuestion(true);
@@ -279,13 +441,10 @@ function chooseAnswer(event) {
     feedbackElement.className = "feedback success";
 
     attemptsElement.textContent = "Ready for the next character?";
-
     nextButton.hidden = false;
 
     return;
   }
-
-  // INCORRECT ANSWER
 
   wrongAttempts++;
 
@@ -300,10 +459,7 @@ function chooseAnswer(event) {
 
     attemptsElement.textContent =
       `${remaining} ${remaining === 1 ? "attempt" : "attempts"} remaining.`;
-
   } else {
-    // ALL THREE ATTEMPTS USED
-
     completeQuestion(false);
 
     answerButtons.forEach(item => {
@@ -316,12 +472,13 @@ function chooseAnswer(event) {
     feedbackElement.className = "feedback error";
 
     attemptsElement.textContent = "No attempts remaining.";
-
     nextButton.hidden = false;
   }
 }
 
+// ========================================
 // EVENT LISTENERS
+// ========================================
 
 answerButtons.forEach(button => {
   button.addEventListener("click", chooseAnswer);
@@ -329,27 +486,27 @@ answerButtons.forEach(button => {
 
 nextButton.addEventListener("click", startQuestion);
 
+// ========================================
 // RESET SESSION SCORE
+// ========================================
 
 resetButton.addEventListener("click", () => {
   correctCount = 0;
   questionCount = 0;
 
   updateStats();
-
-  // This resets the displayed session accuracy only.
-  // It does NOT delete or reset Supabase daily history.
-
   startQuestion();
 });
 
+// ========================================
 // INITIALIZE
+// ========================================
 
 async function initializeQuiz() {
-  await loadDailyHistory();
-
   updateStats();
   startQuestion();
+
+  await initializeAuth();
 }
 
 initializeQuiz();
