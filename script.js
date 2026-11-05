@@ -278,7 +278,87 @@ async function initializeAuth() {
 }
 
 // ========================================
-// LOAD DAILY HISTORY
+// STREAK CALCULATIONS
+// ========================================
+
+function getDateOffset(dateString, offset) {
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  const date = new Date(Date.UTC(year, month - 1, day + offset));
+
+  return date.toISOString().slice(0, 10);
+}
+
+function updateCombos(history) {
+  const historyByDate = new Map(
+    history.map(row => [row.study_date, row])
+  );
+
+  const today = getLocalStudyDate();
+  const todayRecord = historyByDate.get(today);
+
+  // If today's 10 questions are complete, today's result
+  // determines whether the current streak continues.
+  // Otherwise, use yesterday as the starting point.
+  let currentDate;
+
+  if (todayRecord && todayRecord.total_questions >= 10) {
+    currentDate = todayRecord.qualifies ? today : null;
+  } else {
+    currentDate = getDateOffset(today, -1);
+  }
+
+  // Calculate current combo.
+  let currentCombo = 0;
+
+  while (currentDate) {
+    const record = historyByDate.get(currentDate);
+
+    if (!record || !record.qualifies) break;
+
+    currentCombo++;
+    currentDate = getDateOffset(currentDate, -1);
+  }
+
+  // Calculate best combo across all recorded days.
+  const sortedDates = [...historyByDate.keys()].sort();
+
+  let bestCombo = 0;
+  let runningCombo = 0;
+  let previousDate = null;
+
+  sortedDates.forEach(date => {
+    const record = historyByDate.get(date);
+
+    if (!record.qualifies) {
+      runningCombo = 0;
+      previousDate = date;
+      return;
+    }
+
+    if (
+      previousDate &&
+      date !== getDateOffset(previousDate, 1)
+    ) {
+      runningCombo = 0;
+    }
+
+    runningCombo++;
+    bestCombo = Math.max(bestCombo, runningCombo);
+
+    previousDate = date;
+  });
+
+  // Update the HTML.
+  document.getElementById("currentCombo").textContent =
+    `🔥 ${currentCombo}`;
+
+  document.getElementById("bestCombo").textContent =
+    `🔥 ${bestCombo}`;
+}
+
+// ========================================
+// LOAD DAILY HISTORY AND STREAKS
 // ========================================
 
 async function loadDailyHistory() {
@@ -287,19 +367,31 @@ async function loadDailyHistory() {
   try {
     const { data, error } = await supabaseClient
       .from("hiragana_daily_history")
-      .select("correct_count, total_questions")
+      .select("study_date, correct_count, total_questions, qualifies")
       .eq("user_id", currentUser.id)
-      .eq("study_date", getLocalStudyDate())
-      .maybeSingle();
+      .order("study_date", { ascending: true });
 
     if (error) throw error;
 
-    dailyCorrectCount = data?.correct_count ?? 0;
-    dailyTotalQuestions = data?.total_questions ?? 0;
+    const history = data || [];
 
-    console.log("Daily history loaded:", {
+    // Load today's totals for the quiz.
+    const today = getLocalStudyDate();
+
+    const todayRecord = history.find(
+      row => row.study_date === today
+    );
+
+    dailyCorrectCount = todayRecord?.correct_count ?? 0;
+    dailyTotalQuestions = todayRecord?.total_questions ?? 0;
+
+    // Calculate current and best combos.
+    updateCombos(history);
+
+    console.log("Daily history and streaks loaded:", {
       dailyCorrectCount,
-      dailyTotalQuestions
+      dailyTotalQuestions,
+      history
     });
 
   } catch (error) {
@@ -322,9 +414,9 @@ function saveDailyResult() {
     .then(async () => {
       if (!currentUser) return;
 
-      const qualifies =
-        dailyTotalQuestions > 0 &&
-        (dailyCorrectCount / dailyTotalQuestions) >= 0.70;
+  const qualifies =
+    dailyTotalQuestions >= 10 &&
+    (dailyCorrectCount / dailyTotalQuestions) >= 0.70;
 
       const dailyResult = {
         user_id: currentUser.id,
@@ -343,6 +435,7 @@ function saveDailyResult() {
       if (error) throw error;
 
       console.log("Daily result saved:", dailyResult);
+      await loadDailyHistory();
     })
     .catch(error => {
       console.error("Error saving daily result:", error);
