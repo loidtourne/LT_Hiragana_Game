@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
   <main class="game">
 
     <header class="header">
@@ -19,7 +18,6 @@
     </header>
 
     <section class="stats">
-
       <div class="stat">
         <span class="stat-label">Current Combo</span>
         <div class="stat-value">
@@ -43,11 +41,9 @@
           <span>overall</span>
         </div>
       </div>
-
     </section>
 
     <section class="quiz-card">
-
       <div class="character" id="hiragana">あ</div>
 
       <p class="feedback" id="feedback">
@@ -70,33 +66,45 @@
       <p class="attempts" id="attempts">
         You have 3 attempts.
       </p>
-
     </section>
 
-<footer>
-  <span>Hiragana practice</span>
+    <footer>
+      <span>Hiragana practice</span>
 
-  <div class="footer-actions">
-    <button class="reset-button" id="resetButton" type="button">
-      Reset score
-    </button>
+      <div class="footer-actions">
+        <button class="reset-button" id="resetButton" type="button">
+          Reset score
+        </button>
 
-    <button class="auth-button" id="authButton" type="button">
-      Sign in
-    </button>
-  </div>
+        <button class="auth-button" id="authButton" type="button">
+          Sign in
+        </button>
+      </div>
 
-  <p class="account-status" id="accountStatus">
-    Study mode
-  </p>
-</footer>
+      <form class="login-panel" id="loginPanel" hidden>
+        <label for="loginEmail">Email address</label>
+        <input
+          id="loginEmail"
+          type="email"
+          placeholder="Enter your email"
+          autocomplete="email"
+          required
+        >
+        <button class="auth-submit" id="loginSubmit" type="submit">
+          Send sign-in link
+        </button>
+        <p class="login-message" id="loginMessage" aria-live="polite"></p>
+      </form>
+
+      <p class="account-status" id="accountStatus">
+        Study mode
+      </p>
+    </footer>
 
   </main>
 
-  <!-- Supabase JavaScript library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- Supabase configuration -->
   <script>
     const SUPABASE_URL = "https://ckbasqdqtmxwrixcctca.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Gumosi4t5hmBCR_eiLLNNw_unIoQjo_";
@@ -109,8 +117,6 @@
     window.supabaseClient = supabase;
   </script>
 
-  <!-- Quiz JavaScript -->
   <script src="script.js"></script>
-
 </body>
 </html>
