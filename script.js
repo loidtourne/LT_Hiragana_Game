@@ -18,10 +18,6 @@ const hiragana = [
 ];
 
 // SUPABASE
-
-// Your index.html must initialize the Supabase client first
-// and assign it to window.supabaseClient.
-
 const supabaseClient = window.supabaseClient;
 
 // Current authenticated user
