@@ -356,4 +356,33 @@ async function initializeQuiz() {
   startQuestion();
 }
 
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-button {
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.auth-button:hover {
+  border-color: var(--accent);
+}
+
+.account-status {
+  width: 100%;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+
 initializeQuiz();
