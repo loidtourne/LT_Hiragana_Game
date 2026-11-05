@@ -365,7 +365,22 @@ function completeQuestion(wasCorrect) {
     correctCount++;
     dailyCorrectCount++;
   }
+  
+  if (dailyTotalQuestions >= 10) {
+    answerButtons.forEach(button => {
+      button.disabled = true;
+    });
 
+    document.querySelector(".answers").classList.add("daily-limit");
+
+    feedbackElement.textContent = "Daily limit reached. Come back tomorrow!";
+    feedbackElement.className = "feedback";
+
+    attemptsElement.textContent = "You've completed 10 questions today.";
+
+    nextButton.hidden = true;
+  }
+  
   updateStats();
   saveDailyResult();
 }
@@ -379,6 +394,25 @@ function startQuestion() {
     ([character]) => character !== previousCharacter
   );
 
+// Stop quiz when daily limit is reached.
+if (dailyTotalQuestions >= 10) {
+  answerButtons.forEach(button => {
+    button.disabled = true;
+  });
+
+  document.querySelector(".answers").classList.add("daily-limit");
+
+  feedbackElement.textContent = "Daily limit reached. Come back tomorrow!";
+  feedbackElement.className = "feedback";
+
+  attemptsElement.textContent = "You've completed 10 questions today.";
+
+  nextButton.hidden = true;
+  return;
+}
+
+document.querySelector(".answers").classList.remove("daily-limit");
+  
   currentQuestion = randomItem(pool);
   previousCharacter = currentQuestion[0];
 
