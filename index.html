@@ -1,0 +1,105 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#191919">
+  <title>Hiragana Quiz</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="game">
+
+    <header class="header">
+      <p class="eyebrow">JAPANESE STUDY</p>
+      <h1>Hiragana Quiz</h1>
+      <p class="subtitle">Choose the correct romaji for each character.</p>
+    </header>
+
+    <section class="stats">
+
+      <div class="stat">
+        <span class="stat-label">Current Combo</span>
+        <div class="stat-value">
+          <strong id="currentCombo">🔥 0</strong>
+          <span>days</span>
+        </div>
+      </div>
+
+      <div class="stat">
+        <span class="stat-label">Best Combo</span>
+        <div class="stat-value">
+          <strong id="bestCombo">🔥 0</strong>
+          <span>days</span>
+        </div>
+      </div>
+
+      <div class="stat">
+        <span class="stat-label">Accuracy</span>
+        <div class="stat-value">
+          <strong id="accuracy">0%</strong>
+          <span>overall</span>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="quiz-card">
+
+      <div class="character" id="hiragana">あ</div>
+
+      <p class="feedback" id="feedback">
+        Select the matching romaji.
+      </p>
+
+      <div class="answers">
+        <button class="answer" type="button"></button>
+        <button class="answer" type="button"></button>
+        <button class="answer" type="button"></button>
+        <button class="answer" type="button"></button>
+      </div>
+
+      <div class="action-area">
+        <button class="next-button" id="nextButton" type="button" hidden>
+          Next Character →
+        </button>
+      </div>
+
+      <p class="attempts" id="attempts">
+        You have 3 attempts.
+      </p>
+
+    </section>
+
+    <footer>
+      <span>Hiragana practice</span>
+      <button class="reset-button" id="resetButton" type="button">
+        Reset score
+      </button>
+    </footer>
+
+  </main>
+
+  <!-- Supabase JavaScript library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Supabase configuration -->
+  <script>
+    const SUPABASE_URL = "https://ckbasqdqtmxwrixcctca.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_Gumosi4t5hmBCR_eiLLNNw_unIoQjo_";
+
+    const supabase = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY
+    );
+
+    window.supabaseClient = supabase;
+  </script>
+
+  <!-- Quiz JavaScript -->
+  <script src="script.js"></script>
+
+</body>
+</html>
